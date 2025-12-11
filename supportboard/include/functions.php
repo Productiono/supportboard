@@ -165,6 +165,7 @@ function sb_db_get($query, $single = true) {
 }
 }
 
+if (!function_exists('sb_db_query')) {
 function sb_db_query($query, $return = false) {
     global $SB_CONNECTION;
     $status = sb_db_connect();
@@ -186,6 +187,7 @@ function sb_db_query($query, $return = false) {
     } else {
         return $status;
     }
+}
 }
 
 function sb_db_escape($value, $numeric = -1) {
