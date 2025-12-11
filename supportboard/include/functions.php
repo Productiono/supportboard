@@ -104,6 +104,7 @@ for ($i = 0; $i < count($sb_apps); $i++) {
  *
  */
 
+if (!function_exists('sb_db_connect')) {
 function sb_db_connect() {
     global $SB_CONNECTION;
     if (!defined('SB_DB_NAME') || !SB_DB_NAME) {
@@ -134,6 +135,7 @@ function sb_db_connect() {
     }
     sb_db_init_settings();
     return true;
+}
 }
 
 function sb_db_get($query, $single = true) {
@@ -771,6 +773,9 @@ function sb_updates_validation() {
 
             //3.8.7
             $settings = sb_get_settings();
+            if (sb_is_error($settings) || sb_is_validation_error($settings)) {
+                return;
+            }
             $delay = sb_isset(sb_isset(sb_isset(sb_isset($settings, 'welcome-message'), 0), 'welcome-delay'), 0);
             if ($delay && $delay > 1000) {
                 if (!isset($settings['welcome-message'][0])) {
