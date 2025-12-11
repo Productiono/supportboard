@@ -4872,7 +4872,7 @@
                                     if (key == 'profile_image') {
                                         value = value.substr(value.lastIndexOf('/') + 1);
                                     }
-                                    if (['password', 'password-check', 'envato-purchase-code', 'otp'].includes(key)) {
+                                    if (['password', 'password-check', 'otp'].includes(key)) {
                                         value = '********';
                                         payload_settings[key] = '********';
                                     } else {
@@ -5334,7 +5334,7 @@
         getRegistrationErrorMessage(area_or_response, type = 'validation') {
             let error_text = '';
             if (type == 'response') {
-                return SBF.errorValidation(area_or_response, 'duplicate-email') ? 'This email is already in use. Please use another email.' : (SBF.errorValidation(area_or_response, 'duplicate-phone') ? 'This phone number is already in use. Please use another number.' : (SBF.errorValidation(area_or_response, 'invalid-envato-purchase-code') ? 'Invalid Envato purchase code.' : (SBF.errorValidation(area_or_response, 'invalid-otp') ? 'Invalid one-time code.' : 'Error. Please check your information and try again.')))
+                return SBF.errorValidation(area_or_response, 'duplicate-email') ? 'This email is already in use. Please use another email.' : (SBF.errorValidation(area_or_response, 'duplicate-phone') ? 'This phone number is already in use. Please use another number.' : (SBF.errorValidation(area_or_response, 'invalid-otp') ? 'Invalid one-time code.' : 'Error. Please check your information and try again.'))
             }
             $(area_or_response).find('.sb-input:not(#password-check) [required]').each(function () {
                 error_text += ', ' + $(this).closest('.sb-input').find('span').html() + ($(this).attr('type') == 'password' ? ' (' + sb_('8 characters minimum') + ')' : '');

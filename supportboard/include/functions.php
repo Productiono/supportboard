@@ -773,16 +773,31 @@ function sb_updates_validation() {
             $settings = sb_get_settings();
             $delay = sb_isset(sb_isset(sb_isset(sb_isset($settings, 'welcome-message'), 0), 'welcome-delay'), 0);
             if ($delay && $delay > 1000) {
+                if (!isset($settings['welcome-message'][0])) {
+                    $settings['welcome-message'][0] = [];
+                }
+                if (!isset($settings['welcome-message'][0]['welcome-delay'])) {
+                    $settings['welcome-message'][0]['welcome-delay'] = [];
+                }
                 $settings['welcome-message'][0]['welcome-delay'][0] = $delay / 1000;
                 $save = true;
             }
             $delay = sb_isset(sb_isset(sb_isset(sb_isset($settings, 'dialogflow-bot-delay'), 0), 'follow-delay'), 0);
             if ($delay && $delay > 1000) {
+                if (!isset($settings['follow-message'][0])) {
+                    $settings['follow-message'][0] = [];
+                }
+                if (!isset($settings['follow-message'][0]['follow-delay'])) {
+                    $settings['follow-message'][0]['follow-delay'] = [];
+                }
                 $settings['follow-message'][0]['follow-delay'][0] = $delay / 1000;
                 $save = true;
             }
             $delay = sb_isset(sb_isset($settings, 'dialogflow-bot-delay'), 0);
             if ($delay && $delay > 1000) {
+                if (!isset($settings['dialogflow-bot-delay'])) {
+                    $settings['dialogflow-bot-delay'] = [];
+                }
                 $settings['dialogflow-bot-delay'][0] = $delay / 1000;
                 $save = true;
             }
@@ -825,9 +840,6 @@ function sb_installation($details, $force = false) {
     $database = [];
     if (sb_db_check_connection() === true && !$force) {
         return true;
-    }
-    if (empty($details['envato-purchase-code']) && defined('SB_WP')) {
-        return false;
     }
     if (!isset($details['db-name']) || !isset($details['db-user']) || !isset($details['db-password']) || !isset($details['db-host'])) {
         return ['error' => 'Missing database details.'];
@@ -2501,7 +2513,7 @@ function sb_cloud_load() {
 
 function sb_cloud_load_by_url() {
     if (sb_is_cloud()) {
-        $token = isset($_GET['envato_purchase_code']) ? $_GET['envato_purchase_code'] : (isset($_GET['cloud']) ? $_GET['cloud'] : false);
+        $token = isset($_GET['cloud']) ? $_GET['cloud'] : false;
         if ($token) {
             $token = sb_sanatize_file_name($token);
             $path = SB_CLOUD_PATH . '/script/config/config_' . $token . '.php';
