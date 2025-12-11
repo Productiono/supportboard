@@ -5,7 +5,7 @@
  * WORDPRESS APP
  * ==========================================================
  *
- * WordPress app. © 2017-2023 board.support. All rights reserved.
+ * WordPress app.  2017-2023 board.support. All rights reserved.
  *
  */
 
@@ -135,17 +135,18 @@ function sb_wp_verify_admin_login() {
  * CONFIG
  * -----------------------------------------------------------
  *
- * Return the WordPress information to insert into the config.php file
+ * Return the WordPress information stored in the Support Board options
  *
  */
 
 function sb_wp_config() {
     global $wpdb;
     $upload_directory = wp_upload_dir();
-    if (!file_exists($upload_directory['basedir'] . '/sb')) {
-        mkdir($upload_directory['basedir'] . '/sb', 0755, true);
-    }
-    return '/* WordPress prefix */' . PHP_EOL . 'define(\'SB_WP_PREFIX\', \'' . $wpdb->prefix . '\');' . PHP_EOL . PHP_EOL . '/* Upload path */' . PHP_EOL . 'define(\'SB_UPLOAD_PATH\', \'' . $upload_directory['basedir'] . '/sb\');' . PHP_EOL . PHP_EOL . '/* Upload url */' . PHP_EOL . 'define(\'SB_UPLOAD_URL\', \'' . $upload_directory['baseurl'] . '/sb\');' . PHP_EOL . PHP_EOL . '/* [extra] */';
+    return [
+        'wp_prefix' => $wpdb->prefix,
+        'upload_path' => $upload_directory['basedir'] . '/sb',
+        'upload_url' => $upload_directory['baseurl'] . '/sb'
+    ];
 }
 
 function sb_load_wp_auth_key() {

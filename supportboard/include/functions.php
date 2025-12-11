@@ -23,7 +23,6 @@ if (isset($_COOKIE['sb-cloud'])) {
     $_POST['cloud'] = $_COOKIE['sb-cloud'];
 }
 
-require_once(SB_PATH . '/config.php');
 require_once(SB_PATH . '/include/users.php');
 require_once(SB_PATH . '/include/messages.php');
 require_once(SB_PATH . '/include/settings.php');
@@ -36,6 +35,92 @@ global $SB_LOGIN;
 global $SB_LANGUAGE;
 global $SB_TRANSLATIONS;
 const SELECT_FROM_USERS = 'SELECT id, first_name, last_name, email, profile_image, user_type, creation_time, last_activity, department, token';
+
+function sb_load_wp_options_functions() {
+    if (!function_exists('get_option')) {
+        $wp_load = SB_PATH . '/../../../../wp-load.php';
+        if (file_exists($wp_load)) {
+            require_once($wp_load);
+        }
+    }
+}
+
+function sb_get_config_option() {
+    sb_load_wp_options_functions();
+    $config = function_exists('get_option') ? get_option('supportboard_config', []) : [];
+    return is_array($config) ? $config : [];
+}
+
+function sb_update_config_option($data) {
+    $config = array_merge(sb_get_config_option(), $data);
+    if (function_exists('update_option')) {
+        update_option('supportboard_config', $config);
+    }
+    sb_define_config_from_options($config);
+    return $config;
+}
+
+function sb_define_config_from_options($config = false) {
+    if ($config === false) {
+        $config = sb_get_config_option();
+    }
+    $config = is_array($config) ? $config : [];
+    if (!defined('SB_URL') && isset($config['url'])) {
+        define('SB_URL', $config['url']);
+    }
+    if (!defined('SB_DB_NAME') && isset($config['db_name'])) {
+        define('SB_DB_NAME', $config['db_name']);
+    }
+    if (!defined('SB_DB_USER') && isset($config['db_user'])) {
+        define('SB_DB_USER', $config['db_user']);
+    }
+    if (!defined('SB_DB_PASSWORD') && isset($config['db_password'])) {
+        define('SB_DB_PASSWORD', $config['db_password']);
+    }
+    if (!defined('SB_DB_HOST') && isset($config['db_host'])) {
+        define('SB_DB_HOST', $config['db_host']);
+    }
+    if (!defined('SB_DB_PORT') && isset($config['db_port'])) {
+        define('SB_DB_PORT', $config['db_port']);
+    }
+    if (!defined('SB_WP_PREFIX') && isset($config['wp_prefix'])) {
+        define('SB_WP_PREFIX', $config['wp_prefix']);
+    }
+    if (!defined('SB_UPLOAD_PATH') && isset($config['upload_path'])) {
+        define('SB_UPLOAD_PATH', $config['upload_path']);
+    }
+    if (!defined('SB_UPLOAD_URL') && isset($config['upload_url'])) {
+        define('SB_UPLOAD_URL', $config['upload_url']);
+    }
+    if (!defined('SB_INSTALL_VERSION') && isset($config['version'])) {
+        define('SB_INSTALL_VERSION', $config['version']);
+    }
+    if (isset($config['external_databases']) && is_array($config['external_databases'])) {
+        foreach ($config['external_databases'] as $key => $values) {
+            $NAME = strtoupper($key);
+            if (!defined('SB_' . $NAME . '_DB_HOST') && isset($values['host'])) {
+                define('SB_' . $NAME . '_DB_HOST', $values['host']);
+            }
+            if (!defined('SB_' . $NAME . '_DB_USER') && isset($values['user'])) {
+                define('SB_' . $NAME . '_DB_USER', $values['user']);
+            }
+            if (!defined('SB_' . $NAME . '_DB_PASSWORD') && isset($values['password'])) {
+                define('SB_' . $NAME . '_DB_PASSWORD', $values['password']);
+            }
+            if (!defined('SB_' . $NAME . '_DB_NAME') && isset($values['name'])) {
+                define('SB_' . $NAME . '_DB_NAME', $values['name']);
+            }
+            if (!defined('SB_' . $NAME . '_DB_PREFIX') && isset($values['prefix'])) {
+                define('SB_' . $NAME . '_DB_PREFIX', $values['prefix']);
+            }
+        }
+    }
+}
+
+sb_define_config_from_options();
+if (!defined('SB_URL')) {
+    define('SB_URL', '');
+}
 
 class SBError {
     public $error;
@@ -122,7 +207,7 @@ function sb_db_connect() {
     }
     try {
         if (!$SB_CONNECTION->real_connect(SB_DB_HOST, SB_DB_USER, SB_DB_PASSWORD, SB_DB_NAME, $socket ? null : $port, $socket, $certificate_path ? MYSQLI_CLIENT_SSL : 0)) {
-            echo 'Connection error. Visit the admin area for more details or open the config.php file and check the database information. Message: ' . $SB_CONNECTION->connect_error . '.';
+            echo 'Connection error. Visit the admin area for more details or update the Support Board database details in WordPress. Message: ' . $SB_CONNECTION->connect_error . '.';
             return false;
         }
     } catch (Exception $exception) {
@@ -291,15 +376,14 @@ function sb_external_db($action, $name, $query = '', $extra = false) {
                     define('SB_' . $NAME . '_DB_PREFIX', empty($database[$name . '-db-prefix']) ? 'tbl' : $database[$name . '-db-prefix']);
                     $prefix = PHP_EOL . 'define(\'SB_' . $NAME . '_DB_PREFIX\', \'' . sb_isset($database, $name . '-db-prefix', 'tbl') . '\');';
                 }
-                sb_write_config_extra('/* ' . $NAME . ' CRM  */' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_HOST\', \'' . $database[$name . '-db-host'] . '\');' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_USER\', \'' . $database[$name . '-db-user'] . '\');' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_PASSWORD\', \'' . $database[$name . '-db-password'] . '\');' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_NAME\', \'' . $database[$name . '-db-name'] . '\');' . $prefix);
+                sb_store_external_database($name, $database);
             }
             $connection = new mysqli(constant('SB_' . $NAME . '_DB_HOST'), constant('SB_' . $NAME . '_DB_USER'), constant('SB_' . $NAME . '_DB_PASSWORD'), constant('SB_' . $NAME . '_DB_NAME'));
             if ($connection->connect_error) {
                 if ($defined) {
                     $database = sb_get_setting($name . '-db');
                     if (constant('SB_' . $NAME . '_DB_HOST') != $database[$name . '-db-host'] || constant('SB_' . $NAME . '_DB_USER') != $database[$name . '-db-user'] || constant('SB_' . $NAME . '_DB_PASSWORD') != $database[$name . '-db-password'] || constant('SB_' . $NAME . '_DB_NAME') != $database[$name . '-db-name'] || (defined('SB_' . $NAME . '_DB_PREFIX') && constant('SB_' . $NAME . '_DB_PREFIX') != $database[$name . '-db-prefix'])) {
-                        $raw = file_get_contents(SB_PATH . '/config.php');
-                        sb_file(SB_PATH . '/config.php', str_replace(['/* Perfex CRM  */', 'define(\'SB_' . $NAME . '_DB_HOST\', \'' . constant('SB_' . $NAME . '_DB_HOST') . '\');', 'define(\'SB_' . $NAME . '_DB_USER\', \'' . constant('SB_' . $NAME . '_DB_USER') . '\');', 'define(\'SB_' . $NAME . '_DB_PASSWORD\', \'' . constant('SB_' . $NAME . '_DB_PASSWORD') . '\');', 'define(\'SB_' . $NAME . '_DB_NAME\', \'' . constant('SB_' . $NAME . '_DB_NAME') . '\');', defined('SB_' . $NAME . '_DB_PREFIX') ? 'define(\'SB_' . $NAME . '_DB_PREFIX\', \'' . constant('SB_' . $NAME . '_DB_PREFIX') . '\');' : ''], '', $raw));
+                        sb_store_external_database($name, $database);
                     }
                 }
                 die($connection->connect_error);
@@ -950,18 +1034,22 @@ function sb_installation($details, $force = false) {
         // Create the database
         $response = sb_installation_db($database['host'], $database['user'], $database['password'], $database['name'], $database['port'], $purchase_code, $details['url'], $details);
 
-        // Create the config.php file and other files
+        // Save the configuration data to WordPress options
         if (!sb_is_cloud()) {
-            $raw = file_get_contents(SB_PATH . '/resources/config-source.php');
-            $raw = str_replace(['[url]', '[name]', '[user]', '[password]', '[host]', '[port]'], [$details['url'], $database['name'], $database['user'], $database['password'], $database['host'], (isset($details['db-port']) && $details['db-port'][0] ? $database['port'] : '')], $raw);
-            $path = SB_PATH . '/sw.js';
+            $config_option = [
+                'url' => $details['url'],
+                'db_name' => $database['name'],
+                'db_user' => $database['user'],
+                'db_password' => $database['password'],
+                'db_host' => $database['host'],
+                'db_port' => (isset($details['db-port']) && $details['db-port'][0] ? $database['port'] : ''),
+                'installed' => true,
+                'version' => SB_VERSION
+            ];
             if (defined('SB_WP')) {
-                $raw = str_replace('/* [extra] */', sb_wp_config(), $raw);
+                $config_option = array_merge($config_option, sb_wp_config());
             }
-            sb_file(SB_PATH . '/config.php', $raw);
-            if (!file_exists($path)) {
-                copy(SB_PATH . '/resources/sw.js', $path);
-            }
+            sb_update_config_option($config_option);
         }
 
         // Return
@@ -1009,9 +1097,21 @@ function sb_installation_db($host, $user, $password, $name, $port, $envato_purch
     return $response;
 }
 
+function sb_store_external_database($name, $database) {
+    $config = sb_get_config_option();
+    $external_databases = sb_isset($config, 'external_databases', []);
+    $external_databases[strtolower($name)] = [
+        'host' => sb_isset($database, $name . '-db-host'),
+        'user' => sb_isset($database, $name . '-db-user'),
+        'password' => sb_isset($database, $name . '-db-password'),
+        'name' => sb_isset($database, $name . '-db-name'),
+        'prefix' => sb_isset($database, $name . '-db-prefix')
+    ];
+    sb_update_config_option(['external_databases' => $external_databases]);
+}
+
 function sb_write_config_extra($content) {
-    $raw = file_get_contents(SB_PATH . '/config.php');
-    sb_file(SB_PATH . '/config.php', str_replace('?>', $content . PHP_EOL . PHP_EOL . '?>', $raw));
+    sb_update_config_option(['config_extra' => $content]);
 }
 
 function sb_upload_path($url = false, $date = false) {

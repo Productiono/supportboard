@@ -5,7 +5,7 @@
  * COMPONENTS.PHP
  * ==========================================================
  *
- * Library of static html components for the admin area. This file must not be executed directly. © 2017-2025 board.support. All rights reserved.
+ * Library of static html components for the admin area. This file must not be executed directly.  2017-2025 board.support. All rights reserved.
  *
  */
 
@@ -206,7 +206,7 @@ function sb_login_box() { ?>
                     });
                 });
                 $('#sb-error-check').one('error', function () {
-                    $('.sb-info').html('It looks like the chat URL has changed. Edit the config.php file(it\'s in the Support Board folder) and update the SB_URL constant with the new URL.').addClass('sb-active');
+                    $('.sb-info').html('It looks like the chat URL has changed. Update the Support Board URL from the WordPress options to continue.').addClass('sb-active');
                 });
                 SBF.serviceWorker.init();
             });
@@ -378,7 +378,7 @@ function sb_installation_box($error = false) {
             <?php if ($error === false || $error == 'installation')
                 echo '<div class="sb-info"></div>';
             else
-                die('<div class="sb-info sb-active">' . sb_('We\'re having trouble connecting to your database. Please edit the file config.php and check your database connection details. Error: ') . $error . '.</div>'); ?>
+                die('<div class="sb-info sb-active">' . sb_('We\'re having trouble connecting to your database. Please update the Support Board database settings in WordPress. Error: ') . $error . '.</div>'); ?>
             <div class="sb-top-bar">
                 <img src="<?php echo (!SB_URL || SB_URL == '[url]' ? '' : SB_URL . '/') ?>media/logo.svg" />
                 <div class="sb-title">
