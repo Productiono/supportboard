@@ -406,19 +406,9 @@ function sb_installation_box($error = false) {
                     <input type="text" placeholder="Default" />
                 </div>
                 <?php if ($error === false || $error == 'installation') { ?>
-                  <div class="sb-text">
-                      <?php sb_e('Enter your Envato purchase code below.') ?>
-                      <a class="sb-text" href="https://help.market.envato.com/hc/en-us/articles/202822600-Where-Is-My-Purchase-Code-" rel="nofollow" target="_blank"><?php sb_e('Where is my purchase code?') ?></a>
-                  </div>
-                  <div id="envato-purchase-code" class="sb-input">
-                    <span>
-                        <?php sb_e('Purchase code') ?>
-                    </span>
-                    <input type="text" required />
-                </div>
                     <div class="sb-text">
-                        <?php sb_e('Enter the user details of the main account you will use to login into the administration area. You can update these details later.') ?>
-                    </div>
+                          <?php sb_e('Enter the user details of the main account you will use to login into the administration area. You can update these details later.') ?>
+                      </div>
                     <div id="first-name" class="sb-input">
                         <span>
                             <?php sb_e('First name') ?>

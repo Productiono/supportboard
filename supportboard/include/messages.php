@@ -1158,9 +1158,7 @@ function sb_get_rich_message($name, $settings = false) {
                         $extra[$user['details'][$i]['slug']] = $user['details'][$i]['value'];
                     }
                 }
-                if (sb_get_multi_setting('envato-validation', 'envato-validation-active')) {
-                    $registration_fields['envato-purchase-code'] = true;
-                }
+                unset($registration_fields['envato-purchase-code']);
                 foreach ($registration_fields as $key => $value) {
                     if ($value) {
                         $key = str_replace('reg-', '', $key);
@@ -1173,9 +1171,6 @@ function sb_get_rich_message($name, $settings = false) {
                         $custom_input = false;
                         $required = sb_isset($registration_fields, 'reg-required-' . $key);
                         switch ($key) {
-                            case 'envato-purchase-code':
-                                $required = ' required';
-                                break;
                             case 'birthday':
                                 $type = 'date';
                                 break;
