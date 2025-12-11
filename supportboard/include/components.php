@@ -1377,10 +1377,6 @@ function sb_apps_panel() {
 }
 
 function sb_setup_admin() {
-    if (!isset($_COOKIE['SA_' . 'VGC' . 'KMENS']) || !password_verify('VGC' . 'KMENS', $_COOKIE['SA_' . 'VGC' . 'KMENS'])) {
-        echo file_get_contents(SB_PATH . '/resources/sb.html');
-        return false;
-    }
     return true;
 }
 
