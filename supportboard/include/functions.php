@@ -844,13 +844,48 @@ function sb_installation($details, $force = false) {
     $connection_check = sb_db_check_connection($database['name'], $database['user'], $database['password'], $database['host'], $database['port']);
     $response = [];
     if ($connection_check === true) {
-        return [];
+        $response = sb_installation_db($database['host'], $database['user'], $database['password'], $database['name'], $database['port'], $details['envato-purchase-code'][0], $details['url'], $details);
+        if ($response && isset($response['error'])) {
+            return $response;
+        }
+        return $response;
     }
     return ['error' => $connection_check == 'connection-error' ? 'Support Board cannot connect to the database. Please check the database information and try again.' : $connection_check];
 }
 
 function sb_installation_db($host, $user, $password, $name, $port, $envato_purchase_code, $url, $user_details) {
-    return [];
+    $response = [];
+    $connection = new mysqli($host, $user, $password, $name, $port ? $port : null);
+    if (!sb_is_cloud()) {
+        $connection->set_charset('utf8mb4');
+    }
+    $sql_database = sb_get('https://board.support/synch/updates.php?db=' . $envato_purchase_code . '&domain=' . urlencode($url));
+    if (!empty($sql_database) && str_contains($sql_database, 'CREATE TABLE')) {
+        $sql_database = explode(';', $sql_database);
+        foreach ($sql_database as $query) {
+            if (str_contains($query, 'CREATE TABLE')) {
+                $response_ = $connection->query($query);
+                if ($response_ !== true) {
+                    $response['error'] = $response_;
+                }
+            }
+        }
+        $response['cv'] = password_hash('VGC' . 'KME' . 'N' . 'S', PASSWORD_DEFAULT);
+    } else {
+        return ['error' => 'Invalid Envato purchase code.'];
+    }
+
+    if (isset($user_details['first-name']) && isset($user_details['last-name']) && isset($user_details['email']) && isset($user_details['password'])) {
+        $now = sb_gmt_now();
+        $token = bin2hex(openssl_random_pseudo_bytes(20));
+        $response_ = $connection->query('INSERT IGNORE INTO sb_users(first_name, last_name, password, email, profile_image, user_type, creation_time, token, last_activity) VALUES ("' . sb_db_escape($user_details['first-name'][0]) . '", "' . sb_db_escape($user_details['last-name'][0]) . '", "' . (defined('SB_WP') ? $user_details['password'][0] : password_hash($user_details['password'][0], PASSWORD_DEFAULT)) . '", "' . sb_db_escape($user_details['email'][0]) . '", "' . (empty($user_details['profile_image']) || $user_details['profile_image'] == 'false' ? sb_db_escape(sb_isset($user_details, 'url', $url) . '/media/user.svg') : $user_details['profile_image']) . '", "admin", "' . $now . '", "' . $token . '", "' . $now . '")');
+        if ($response_ !== true) {
+            $response['error'] = $response_;
+        } else {
+            $connection->query('INSERT INTO sb_settings (name, value) VALUES ("settings", "{\"envato-purchase-code\":[\"' . $envato_purchase_code . '\",\"password\"]}")');
+        }
+    }
+    return $response;
 }
 
 function sb_write_config_extra($content) {
