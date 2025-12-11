@@ -117,11 +117,6 @@ function sb_define_config_from_options($config = false) {
     }
 }
 
-sb_define_config_from_options();
-if (!defined('SB_URL')) {
-    define('SB_URL', '');
-}
-
 class SBError {
     public $error;
 
@@ -164,6 +159,11 @@ class SBValidationError {
     function code() {
         return $this->error;
     }
+}
+
+sb_define_config_from_options();
+if (!defined('SB_URL')) {
+    define('SB_URL', '');
 }
 
 $sb_apps = ['dialogflow', 'slack', 'wordpress', 'tickets', 'woocommerce', 'ump', 'perfex', 'whmcs', 'aecommerce', 'messenger', 'whatsapp', 'armember', 'viber', 'telegram', 'line', 'wechat', 'zalo', 'twitter', 'zendesk', 'martfury', 'opencart'];
