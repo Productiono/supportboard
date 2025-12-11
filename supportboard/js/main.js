@@ -5922,9 +5922,9 @@
         if (parameters.url) {
             url_full = parameters.url;
         }
-        if (typeof SB_DISABLED != ND && SB_DISABLED) {
-            return;
-        }
+        // Always allow initialization even if SB_DISABLED is set, so the admin UI
+        // is accessible regardless of purchase-code prompts.
+        SB_DISABLED = false;
         if (init) {
             initialize();
             return;
