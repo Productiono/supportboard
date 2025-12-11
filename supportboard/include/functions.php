@@ -190,6 +190,7 @@ function sb_db_query($query, $return = false) {
 }
 }
 
+if (!function_exists('sb_db_escape')) {
 function sb_db_escape($value, $numeric = -1) {
     if (is_numeric($value)) {
         return $value;
@@ -210,7 +211,9 @@ function sb_db_escape($value, $numeric = -1) {
     $value = str_replace('&amp;lt;', '&lt;', $value);
     return $value;
 }
+}
 
+if (!function_exists('sb_db_json_escape')) {
 function sb_db_json_escape($array) {
     if (empty($array)) {
         return '';
@@ -221,16 +224,22 @@ function sb_db_json_escape($array) {
     $value = sb_sanatize_string($value);
     return $SB_CONNECTION ? $SB_CONNECTION->real_escape_string($value) : $value;
 }
+}
 
+if (!function_exists('sb_json_escape')) {
 function sb_json_escape($value) {
     return str_replace(['"', "\'"], ['\"', "'"], $value);
 }
+}
 
+if (!function_exists('sb_db_error')) {
 function sb_db_error($function) {
     global $SB_CONNECTION;
     return sb_error('db-error', $function, $SB_CONNECTION->error);
 }
+}
 
+if (!function_exists('sb_db_check_connection')) {
 function sb_db_check_connection($name = false, $user = false, $password = false, $host = false, $port = false) {
     global $SB_CONNECTION;
     $response = true;
@@ -261,7 +270,11 @@ function sb_db_check_connection($name = false, $user = false, $password = false,
         $response = $SB_CONNECTION->connect_error;
     }
     restore_error_handler();
+    if ($response !== true) {
+        sb_error('db-error', 'sb_db_check_connection', $response);
+    }
     return $response;
+}
 }
 
 function sb_db_init_settings() {
