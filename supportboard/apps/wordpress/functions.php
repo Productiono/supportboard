@@ -142,9 +142,17 @@ function sb_wp_verify_admin_login() {
 function sb_wp_config() {
     global $wpdb;
     $upload_directory = wp_upload_dir();
+    $sb_upload_path = $upload_directory['basedir'] . '/sb';
+    if (!is_dir($sb_upload_path)) {
+        if (function_exists('wp_mkdir_p')) {
+            wp_mkdir_p($sb_upload_path);
+        } else {
+            @mkdir($sb_upload_path, 0755, true);
+        }
+    }
     return [
         'wp_prefix' => $wpdb->prefix,
-        'upload_path' => $upload_directory['basedir'] . '/sb',
+        'upload_path' => $sb_upload_path,
         'upload_url' => $upload_directory['baseurl'] . '/sb'
     ];
 }

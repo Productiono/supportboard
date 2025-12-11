@@ -60,11 +60,88 @@ function sb_update_config_option($data) {
     return $config;
 }
 
+function sb_load_legacy_config_file() {
+    $config_file = SB_PATH . '/config.php';
+    if (!file_exists($config_file)) {
+        return [];
+    }
+
+    $legacy_config = [];
+    $current_constants = get_defined_constants(true);
+    $current_constants = isset($current_constants['user']) ? array_keys($current_constants['user']) : [];
+
+    require_once($config_file);
+
+    if (defined('SB_URL')) {
+        $legacy_config['url'] = SB_URL;
+    }
+    if (defined('SB_DB_NAME')) {
+        $legacy_config['db_name'] = SB_DB_NAME;
+    }
+    if (defined('SB_DB_USER')) {
+        $legacy_config['db_user'] = SB_DB_USER;
+    }
+    if (defined('SB_DB_PASSWORD')) {
+        $legacy_config['db_password'] = SB_DB_PASSWORD;
+    }
+    if (defined('SB_DB_HOST')) {
+        $legacy_config['db_host'] = SB_DB_HOST;
+    }
+    if (defined('SB_DB_PORT')) {
+        $legacy_config['db_port'] = SB_DB_PORT;
+    }
+    if (defined('SB_UPLOAD_PATH')) {
+        $legacy_config['upload_path'] = SB_UPLOAD_PATH;
+    }
+    if (defined('SB_UPLOAD_URL')) {
+        $legacy_config['upload_url'] = SB_UPLOAD_URL;
+    }
+    if (defined('SB_INSTALL_VERSION')) {
+        $legacy_config['version'] = SB_INSTALL_VERSION;
+    }
+
+    $user_constants = get_defined_constants(true);
+    $user_constants = isset($user_constants['user']) ? $user_constants['user'] : [];
+    foreach ($user_constants as $name => $value) {
+        if (in_array($name, $current_constants, true)) {
+            continue;
+        }
+        if (preg_match('/^SB_([A-Z0-9]+)_DB_HOST$/', $name, $match)) {
+            $db_name = strtolower($match[1]);
+            $legacy_config['external_databases'][$db_name]['host'] = $value;
+        } else if (preg_match('/^SB_([A-Z0-9]+)_DB_USER$/', $name, $match)) {
+            $db_name = strtolower($match[1]);
+            $legacy_config['external_databases'][$db_name]['user'] = $value;
+        } else if (preg_match('/^SB_([A-Z0-9]+)_DB_PASSWORD$/', $name, $match)) {
+            $db_name = strtolower($match[1]);
+            $legacy_config['external_databases'][$db_name]['password'] = $value;
+        } else if (preg_match('/^SB_([A-Z0-9]+)_DB_NAME$/', $name, $match)) {
+            $db_name = strtolower($match[1]);
+            $legacy_config['external_databases'][$db_name]['name'] = $value;
+        } else if (preg_match('/^SB_([A-Z0-9]+)_DB_PREFIX$/', $name, $match)) {
+            $db_name = strtolower($match[1]);
+            $legacy_config['external_databases'][$db_name]['prefix'] = $value;
+        }
+    }
+
+    return $legacy_config;
+}
+
 function sb_define_config_from_options($config = false) {
     if ($config === false) {
         $config = sb_get_config_option();
     }
     $config = is_array($config) ? $config : [];
+    if ((!isset($config['db_name']) || !isset($config['db_user']) || !isset($config['db_password']) || !isset($config['db_host'])) && file_exists(SB_PATH . '/config.php')) {
+        $legacy_config = sb_load_legacy_config_file();
+        if (!empty($legacy_config)) {
+            $config = array_merge($legacy_config, $config);
+            if (function_exists('update_option')) {
+                $current_option = sb_get_config_option();
+                update_option('supportboard_config', array_merge($legacy_config, is_array($current_option) ? $current_option : []));
+            }
+        }
+    }
     if (!defined('SB_URL') && isset($config['url'])) {
         define('SB_URL', $config['url']);
     }
