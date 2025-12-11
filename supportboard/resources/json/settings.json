@@ -1722,6 +1722,35 @@
       "content": "Register all visitors automatically. When this option is not active, only the visitors that start a chat will be registered."
     },
     {
+      "type": "multi-input",
+      "id": "envato-validation",
+      "title": "Envato purchase code validation",
+      "content": "Request a valid Envato purchase code for registration.",
+      "help": "https://board.support/docs/#envato-validation",
+      "value": [
+        {
+          "type": "checkbox",
+          "id": "envato-validation-active",
+          "title": "Active"
+        },
+        {
+          "type": "password",
+          "id": "envato-validation-token",
+          "title": "Token"
+        },
+        {
+          "type": "text",
+          "id": "envato-validation-product-ids",
+          "title": "Product IDs"
+        },
+        {
+          "type": "checkbox",
+          "id": "envato-validation-extended-license-only",
+          "title": "Allow only extended licenses"
+        }
+      ]
+    },
+    {
       "type": "select",
       "id": "phone-code",
       "title": "Single phone country code",

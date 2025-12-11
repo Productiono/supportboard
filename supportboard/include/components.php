@@ -5,7 +5,7 @@
  * COMPONENTS.PHP
  * ==========================================================
  *
- * Library of static html components for the admin area. This file must not be executed directly.  2017-2025 board.support. All rights reserved.
+ * Library of static html components for the admin area. This file must not be executed directly. © 2017-2025 board.support. All rights reserved.
  *
  */
 
@@ -284,15 +284,29 @@ function sb_app_box() { ?>
             </div>
         </div>
         <div class="sb-main">
-            <p><?php sb_e('This app is available without a license key.'); ?></p>
+            <p></p>
+            <div class="sb-title">
+                <?php sb_e('License key') ?>
+            </div>
+            <div class="sb-setting sb-type-text">
+                <input type="text" required />
+            </div>
             <div class="sb-bottom">
                 <a class="sb-btn sb-icon sb-btn-app-setting">
                     <i class="sb-icon-settings"></i>
                     <?php sb_e('Settings') ?>
                 </a>
+                <a class="sb-activate sb-btn sb-icon">
+                    <i class="sb-icon-check"></i>
+                    <?php sb_e('Activate') ?>
+                </a>
                 <a class="sb-btn-red sb-btn sb-icon sb-btn-app-disable">
                     <i class="sb-icon-close"></i>
                     <?php sb_e('Disable') ?>
+                </a>
+                <a class="sb-btn sb-icon sb-btn-app-puchase" target="_blank" href="#">
+                    <i class="sb-icon-plane"></i>
+                    <?php sb_e('Purchase license') ?>
                 </a>
                 <a class="sb-btn-text sb-btn-app-details" target="_blank" href="#">
                     <i class="sb-icon-help"></i>
@@ -406,9 +420,19 @@ function sb_installation_box($error = false) {
                     <input type="text" placeholder="Default" />
                 </div>
                 <?php if ($error === false || $error == 'installation') { ?>
+                  <div class="sb-text">
+                      <?php sb_e('Enter your Envato purchase code below.') ?>
+                      <a class="sb-text" href="https://help.market.envato.com/hc/en-us/articles/202822600-Where-Is-My-Purchase-Code-" rel="nofollow" target="_blank"><?php sb_e('Where is my purchase code?') ?></a>
+                  </div>
+                  <div id="envato-purchase-code" class="sb-input">
+                    <span>
+                        <?php sb_e('Purchase code') ?>
+                    </span>
+                    <input type="text" required />
+                </div>
                     <div class="sb-text">
-                          <?php sb_e('Enter the user details of the main account you will use to login into the administration area. You can update these details later.') ?>
-                      </div>
+                        <?php sb_e('Enter the user details of the main account you will use to login into the administration area. You can update these details later.') ?>
+                    </div>
                     <div id="first-name" class="sb-input">
                         <span>
                             <?php sb_e('First name') ?>

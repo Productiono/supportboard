@@ -6071,7 +6071,9 @@
                 domain: SB_URL
             }, (response) => {
                 let error = '';
-                if (SBF.errorValidation(response)) {
+                if (SBF.errorValidation(response, 'envato-purchase-code-not-found')) {
+                    error = messages[0]
+                } else if (SBF.errorValidation(response)) {
                     error = SBF.slugToString(response[1]);
                 } else {
                     let success = true;
@@ -6174,9 +6176,11 @@
                     if (SBF.errorValidation(response)) {
                         let error = '';
                         response = response[1];
-                      if (response == 'invalid-key') {
-                              error = 'It looks like your license key is invalid. If you believe this is an error, please contact support.';
-                          } else if (response == 'expired') {
+                        if (response == 'envato-purchase-code-not-found') {
+                            error = messages[0];
+                        } else if (response == 'invalid-key') {
+                            error = 'It looks like your license key is invalid. If you believe this is an error, please contact support.';
+                        } else if (response == 'expired') {
                             error = messages[1].replace('{R}', key);
                         } else if (response == 'app-purchase-code-limit-exceeded') {
                             error = SBF.slugToString(app_name) + ' app purchase code limit exceeded.';
@@ -7073,6 +7077,27 @@
                     break;
                 case 'wp-id':
                     window.open(window.location.href.substr(0, window.location.href.lastIndexOf('/')) + '/user-edit.php?user_id=' + activeUser().getExtra('wp-id').value);
+                    break;
+                case 'envato-purchase-code':
+                    loadingGlobal();
+                    SBF.ajax({
+                        function: 'envato',
+                        purchase_code: label_value
+                    }, (response) => {
+                        let code = '';
+                        if (response && response.item) {
+                            response.name = response.item.name;
+                            for (var key in response) {
+                                if (isString(response[key]) || !isNaN(response[key])) {
+                                    code += `<b>${SBF.slugToString(key)}</b> ${response[key]} <br>`;
+                                }
+                            }
+                            loadingGlobal(false);
+                            infoPanel(code, 'info', false, 'sb-envato-box');
+                        } else {
+                            infoBottom(SBF.slugToString(response));
+                        }
+                    });
                     break;
                 case 'email':
                 case 'cc':

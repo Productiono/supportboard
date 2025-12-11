@@ -19,33 +19,40 @@ $is_cloud = false;
 $cloud_code = '';
 $sb_url = '';
 define('SB_PATH', getcwd());
-require_once __DIR__ . '/include/bootstrap.php';
-require('include/functions.php');
-$is_cloud = sb_is_cloud();
-if ($is_cloud) {
-    if (isset($_GET['reset-login']) || isset($_GET['login_email'])) {
-        sb_cloud_reset_login();
+if (file_exists('config.php')) {
+    require('include/functions.php');
+    $is_cloud = sb_is_cloud();
+    if ($is_cloud) {
+        if (isset($_GET['reset-login']) || isset($_GET['login_email'])) {
+            sb_cloud_reset_login();
+        }
+        if (isset($_GET['magic'])) {
+            require_once(SB_CLOUD_PATH . '/account/functions.php');
+            account_magic_link_login($_GET['magic']);
+        }
+        sb_cloud_load();
+        if (!defined('SB_DB_NAME') || !sb_is_agent()) {
+            die('<script>document.location = "' . CLOUD_URL . '/account?' . (isset($_GET['auto_login']) ? 'auto_login=' . $_GET['auto_login'] . '&sb=' . $_GET['sb'] : 'login') . '"</script>');
+        }
+        $cloud_code = sb_cloud_membership_validation();
+    } else if (!defined('SB_URL')) {
+        define('SB_URL', '');
     }
-    if (isset($_GET['magic'])) {
-        require_once(SB_CLOUD_PATH . '/account/functions.php');
-        account_magic_link_login($_GET['magic']);
+    $connection_check = sb_db_check_connection();
+    $connection_success = $connection_check === true;
+    $minify = false;
+    $sb_url = '';
+    if ($connection_success) {
+        $sb_url = SB_URL . '/';
+        $minify = sb_get_multi_setting('performance', 'performance-minify');
+        sb_updates_validation();
     }
-    sb_cloud_load();
-    if (!defined('SB_DB_NAME') || !sb_is_agent()) {
-        die('<script>document.location = "' . CLOUD_URL . '/account?' . (isset($_GET['auto_login']) ? 'auto_login=' . $_GET['auto_login'] . '&sb=' . $_GET['sb'] : 'login') . '"</script>');
-    }
-    $cloud_code = sb_cloud_membership_validation();
-} else if (!defined('SB_URL')) {
+} else {
     define('SB_URL', '');
-}
-$connection_check = sb_db_check_connection();
-$connection_success = $connection_check === true;
-$minify = false;
-$sb_url = '';
-if ($connection_success) {
-    $sb_url = SB_URL . '/';
-    $minify = sb_get_multi_setting('performance', 'performance-minify');
-    sb_updates_validation();
+    $file = fopen('config.php', 'w');
+    fwrite($file, '');
+    fclose($file);
+    require('include/functions.php');
 }
 require('include/components.php');
 

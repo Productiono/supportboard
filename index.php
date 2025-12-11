@@ -15,39 +15,14 @@
 if (!defined('SB_WP')) {
     define('SB_WP', true);
 }
-
-// Locate the plugin core folder even if the directory structure differs.
-$sb_core_path = null;
-$sb_core_paths = [__DIR__ . '/supportboard', __DIR__];
-foreach ($sb_core_paths as $path) {
-    if (file_exists($path . '/include/bootstrap.php')) {
-        $sb_core_path = $path;
-        break;
-    }
+if (!file_exists(__DIR__ . '/supportboard/config.php')) {
+    sb_on_activation();
+} else {
+    require_once('supportboard/include/functions.php');
 }
-
-if ($sb_core_path === null) {
-    error_log('Support Board bootstrap file missing.');
-    return;
-}
-
-if (!defined('SB_CORE_PATH')) {
-    define('SB_CORE_PATH', $sb_core_path);
-}
-
-if (!defined('SB_URL') && function_exists('plugin_dir_url')) {
-    $core_url = plugin_dir_url(__FILE__);
-    if ($sb_core_path !== __DIR__) {
-        $core_url .= basename($sb_core_path);
-    }
-    define('SB_URL', rtrim($core_url, '/'));
-}
-
-require_once SB_CORE_PATH . '/include/bootstrap.php';
-require_once SB_CORE_PATH . '/include/functions.php';
 
 function sb_boot_session() {
-    require_once SB_CORE_PATH . '/include/functions.php';
+    require_once('supportboard/include/functions.php');
     sb_updates_validation();
 }
 
@@ -77,9 +52,9 @@ function sb_set_admin_menu() {
 }
 
 function sb_admin_action() {
-    require_once SB_CORE_PATH . '/include/functions.php';
-    require_once SB_CORE_PATH . '/include/components.php';
-    require_once SB_CORE_PATH . '/apps/wordpress/functions.php';
+    require_once('supportboard/include/functions.php');
+    require_once('supportboard/include/components.php');
+    require_once('supportboard/apps/wordpress/functions.php');
     $response = sb_db_check_connection();
     if ($response !== true) {
         $response = sb_installation(sb_installation_array());
@@ -93,9 +68,9 @@ function sb_admin_action() {
         sb_js_admin();
         sb_component_admin();
     } else {
-        echo '<link rel="stylesheet"  href="' . SB_URL . '/css/admin.css" media="all" /><script src="' . SB_URL . '/js/main.js"></script>';
-        echo '<script>const SB_AJAX_URL = "' . SB_URL . '/include/ajax.php";const SB_URL = "' . site_url() . '";const SB_WP_USER = ' . json_encode(sb_wp_user_array()) . ';</script>';
-        echo file_get_contents(SB_CORE_PATH . '/resources/sb.html');
+        echo '<link rel="stylesheet"  href="' . plugins_url() . '/supportboard/supportboard/css/admin.css" media="all" /><script src="' . plugins_url() . '/supportboard/supportboard/js/main.js"></script>';
+        echo '<script>const SB_AJAX_URL = "' . plugins_url() . '/supportboard/supportboard/include/ajax.php";const SB_URL = "' . site_url() . '";const SB_WP_USER = ' . json_encode(sb_wp_user_array()) . ';</script>';
+        echo file_get_contents(__DIR__ . '/supportboard/resources/sb.html');
     }
 }
 
@@ -130,7 +105,7 @@ function sb_enqueue_admin() {
  */
 
 function sb_enqueue() {
-    require_once SB_CORE_PATH . '/include/functions.php';
+    require_once('supportboard/include/functions.php');
     if (sb_get_setting('wp-manual') !== true) {
         $ump = defined('SB_UMP');
         $armember = defined('SB_ARMEMBER');
@@ -273,16 +248,20 @@ function sb_is_admin_page() {
 }
 
 function sb_on_activation() {
-    update_option('supportboard_config', [
-        'installed' => true,
-        'version' => SB_VERSION,
-        'url' => SB_URL
-    ]);
+    global $SB_CONNECTION;
+    $path = __DIR__ . '/supportboard/config.php';
+    if (!file_exists($path)) {
+        $raw = str_replace(['[url]', '[name]', '[user]', '[password]', '[host]', '[port]'], '', file_get_contents(__DIR__ . '/supportboard/resources/config-source.php'));
+        $file = fopen($path, 'w');
+        fwrite($file, $raw);
+        fclose($file);
+    }
+    require_once('supportboard/include/functions.php');
     sb_installation(sb_installation_array());
 }
 
 function sb_installation_array() {
-    return array_merge(['db-name' => [DB_NAME], 'db-user' => [DB_USER], 'db-password' => [DB_PASSWORD], 'db-host' => [DB_HOST], 'url' => SB_URL, 'envato-purchase-code' => ['']], sb_wp_user_array());
+    return array_merge(['db-name' => [DB_NAME], 'db-user' => [DB_USER], 'db-password' => [DB_PASSWORD], 'db-host' => [DB_HOST], 'url' => plugins_url() . '/supportboard/supportboard', 'envato-purchase-code' => [sb_isset($_COOKIE, 'SB_ENVATO_CODE')]], sb_wp_user_array());
 }
 
 function sb_wp_user_array($user = false) {
@@ -293,7 +272,7 @@ function sb_wp_user_array($user = false) {
             return [];
         }
     }
-    return ['first-name' => [$user->user_firstname ? esc_html($user->user_firstname) : esc_html($user->user_login)], 'last-name' => [esc_html($user->user_lastname)], 'email' => [esc_html($user->user_email)], 'password' => [$user->user_pass], 'url' => SB_URL];
+    return ['first-name' => [$user->user_firstname ? esc_html($user->user_firstname) : esc_html($user->user_login)], 'last-name' => [esc_html($user->user_lastname)], 'email' => [esc_html($user->user_email)], 'password' => [$user->user_pass], 'url' => plugins_url() . '/supportboard/supportboard'];
 }
 
 function sb_on_wp_user_update($user_id) {

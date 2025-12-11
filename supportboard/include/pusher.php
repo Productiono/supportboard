@@ -6,11 +6,11 @@
  * ==========================================================
  *
  * Pusher authentication file.
- *  2017-2025 board.support. All rights reserved.
+ * © 2017-2025 board.support. All rights reserved.
  *
  */
 
-require_once __DIR__ . '/bootstrap.php';
+require_once('../config.php');
 if (defined('SB_CROSS_DOMAIN') && SB_CROSS_DOMAIN) {
     header('Access-Control-Allow-Origin: *');
 }
