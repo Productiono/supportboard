@@ -277,6 +277,7 @@ function sb_db_check_connection($name = false, $user = false, $password = false,
 }
 }
 
+if (!function_exists('sb_db_init_settings')) {
 function sb_db_init_settings() {
     if (sb_is_cloud()) {
         return;
@@ -284,6 +285,7 @@ function sb_db_init_settings() {
     global $SB_CONNECTION;
     $SB_CONNECTION->set_charset('utf8mb4');
     $SB_CONNECTION->query("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+}
 }
 
 function sb_external_db($action, $name, $query = '', $extra = false) {
