@@ -138,6 +138,7 @@ function sb_db_connect() {
 }
 }
 
+if (!function_exists('sb_db_get')) {
 function sb_db_get($query, $single = true) {
     global $SB_CONNECTION;
     $status = sb_db_connect();
@@ -161,6 +162,7 @@ function sb_db_get($query, $single = true) {
         return $status;
     }
     return $value;
+}
 }
 
 function sb_db_query($query, $return = false) {
