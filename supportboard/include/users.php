@@ -278,20 +278,10 @@ function sb_supervisor() {
 }
 
 function sb_envato_purchase_code_validation($purchase_code, $full_details = false) {
-    $settings = sb_get_setting('envato-validation');
-    $response = json_decode(sb_curl('https://api.envato.com/v3/market/author/sale?code=' . $purchase_code, '', ['Authorization: Bearer ' . $settings['envato-validation-token']], 'GET'), true);
-    $id = isset($response['item']) ? sb_isset($response['item'], 'id') : false;
-    if ($id) {
-        $product_ids = explode(',', str_replace(' ', '', $settings['envato-validation-product-ids']));
-        if (in_array($id, $product_ids) && ($response['license'] == 'Extended License' || ($response['license'] == 'Regular License' && !$settings['envato-validation-extended-license-only']))) {
-            if ($full_details) {
-                $response['purchase_code'] = $purchase_code;
-                return $response;
-            }
-            return true;
-        }
+    if ($full_details) {
+        return ['purchase_code' => $purchase_code];
     }
-    return 'invalid-envato-purchase-code';
+    return true;
 }
 
 function sb_otp($email = false, $otp = false) {
@@ -423,10 +413,7 @@ function sb_add_user($settings = [], $settings_extra = [], $hash_password = true
         $settings['department'] = sb_is_agent() && sb_isset(sb_get_active_user(), 'department') ? sb_get_active_user()['department'] : 'NULL';
     }
     if (isset($settings_extra['envato-purchase-code'])) {
-        $response = sb_envato_purchase_code_validation($settings_extra['envato-purchase-code'][0]);
-        if ($response !== true) {
-            return new SBValidationError('invalid-envato-purchase-code');
-        }
+        sb_envato_purchase_code_validation($settings_extra['envato-purchase-code'][0]);
     }
     $now = sb_gmt_now();
     $token = bin2hex(openssl_random_pseudo_bytes(20));

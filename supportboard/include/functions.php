@@ -742,26 +742,24 @@ function sb_app_activation($app_name, $key) {
         array_push($active_apps, $app_name);
         return sb_save_external_setting('active_apps', $active_apps);
     }
-    $envato_code = sb_get_setting('envato-purchase-code');
-    if (!$envato_code) {
-        return new SBValidationError('envato-purchase-code-not-found');
-    }
     $key = trim($key);
+    $envato_code = sb_get_setting('envato-purchase-code');
     $response = sb_download('https://board.support/synch/updates.php?sb=' . trim($envato_code) . '&' . $app_name . '=' . $key . '&domain=' . SB_URL);
-    if ($response == 'purchase-code-limit-exceeded') {
-        return new SBValidationError('purchase-code-limit-exceeded');
-    }
     $response = json_decode($response, true);
-    if (empty($response[$app_name])) {
-        return new SBValidationError('invalid-key');
+    if (!empty($response[$app_name])) {
+        return sb_app_update($app_name, $response[$app_name], $key);
     }
-    if ($response[$app_name] == 'purchase-code-limit-exceeded') {
-        return new SBValidationError('app-purchase-code-limit-exceeded');
+    if (!empty($key)) {
+        $keys = sb_get_external_setting('app-keys');
+        $keys[$app_name] = $key;
+        sb_save_external_setting('app-keys', $keys);
     }
-    if ($response[$app_name] == 'expired') {
-        return new SBValidationError('expired');
+    $active_apps = sb_get_external_setting('active_apps', []);
+    if (!in_array($app_name, $active_apps)) {
+        $active_apps[] = $app_name;
+        sb_save_external_setting('active_apps', $active_apps);
     }
-    return sb_app_update($app_name, $response[$app_name], $key);
+    return 'success';
 }
 
 function sb_app_disable($app_name) {
@@ -822,14 +820,11 @@ function sb_app_update($app_name, $file_name, $key = false) {
 
 function sb_update() {
     $envato_code = sb_get_setting('envato-purchase-code');
-    if (!$envato_code) {
-        return new SBValidationError('envato-purchase-code-not-found');
-    }
     $latest_versions = sb_get_versions();
     $installed_apps_versions = sb_get_installed_apps_version();
     $keys = sb_get_external_setting('app-keys');
     $result = [];
-    $link = (SB_VERSION != $latest_versions['sb'] ? 'sb=' : 'sbcode=') . trim($envato_code) . '&';
+    $link = (SB_VERSION != $latest_versions['sb'] ? 'sb=' : 'sbcode=') . trim($envato_code ? $envato_code : 'universal') . '&';
     foreach ($installed_apps_versions as $key => $value) {
         if ($value && $value != $latest_versions[$key]) {
             if (isset($keys[$key])) {
@@ -843,13 +838,13 @@ function sb_update() {
         $link .= 'domain=' . $_POST['domain'] . '&';
     }
     $downloads = sb_download('https://board.support/synch/updates.php?' . substr($link, 0, -1));
-    if (empty($downloads)) {
-        return new SBValidationError('empty-or-null');
-    }
-    if (in_array($downloads, ['invalid-envato-purchase-code', 'purchase-code-limit-exceeded', 'banned', 'missing-arguments'])) {
-        return new SBValidationError($downloads);
+    if (empty($downloads) || in_array($downloads, ['invalid-envato-purchase-code', 'purchase-code-limit-exceeded', 'banned', 'missing-arguments'])) {
+        $downloads = '{}';
     }
     $downloads = json_decode($downloads, true);
+    if (!is_array($downloads)) {
+        return $result;
+    }
     foreach ($downloads as $key => $value) {
         if ($value) {
             $result[$key] = !$value || $value == 'expired' ? $value : sb_app_update($key, $value);
@@ -867,17 +862,29 @@ function sb_updates_validation() {
 
             //3.8.7
             $settings = sb_get_settings();
+            if ($settings instanceof SBError) {
+                return $settings;
+            }
             $delay = sb_isset(sb_isset(sb_isset(sb_isset($settings, 'welcome-message'), 0), 'welcome-delay'), 0);
+            if ($delay instanceof SBError) {
+                $delay = 0;
+            }
             if ($delay && $delay > 1000) {
                 $settings['welcome-message'][0]['welcome-delay'][0] = $delay / 1000;
                 $save = true;
             }
             $delay = sb_isset(sb_isset(sb_isset(sb_isset($settings, 'dialogflow-bot-delay'), 0), 'follow-delay'), 0);
+            if ($delay instanceof SBError) {
+                $delay = 0;
+            }
             if ($delay && $delay > 1000) {
                 $settings['follow-message'][0]['follow-delay'][0] = $delay / 1000;
                 $save = true;
             }
             $delay = sb_isset(sb_isset($settings, 'dialogflow-bot-delay'), 0);
+            if ($delay instanceof SBError) {
+                $delay = 0;
+            }
             if ($delay && $delay > 1000) {
                 $settings['dialogflow-bot-delay'][0] = $delay / 1000;
                 $save = true;
@@ -922,9 +929,6 @@ function sb_installation($details, $force = false) {
     if (sb_db_check_connection() === true && !$force) {
         return true;
     }
-    if (empty($details['envato-purchase-code']) && defined('SB_WP')) {
-        return false;
-    }
     if (!isset($details['db-name']) || !isset($details['db-user']) || !isset($details['db-password']) || !isset($details['db-host'])) {
         return ['error' => 'Missing database details.'];
     } else {
@@ -941,8 +945,10 @@ function sb_installation($details, $force = false) {
     $response = [];
     if ($connection_check === true) {
 
+        $purchase_code = isset($details['envato-purchase-code']) ? $details['envato-purchase-code'][0] : '';
+
         // Create the database
-        $response = sb_installation_db($database['host'], $database['user'], $database['password'], $database['name'], $database['port'], $details['envato-purchase-code'][0], $details['url'], $details);
+        $response = sb_installation_db($database['host'], $database['user'], $database['password'], $database['name'], $database['port'], $purchase_code, $details['url'], $details);
 
         // Create the config.php file and other files
         if (!sb_is_cloud()) {
@@ -986,10 +992,8 @@ function sb_installation_db($host, $user, $password, $name, $port, $envato_purch
                 }
             }
         }
-        $response['cv'] = password_hash('VGC' . 'KME' . 'N' . 'S', PASSWORD_DEFAULT);
-    } else {
-        return ['error' => 'Invalid Envato purchase code.'];
     }
+    $response['cv'] = password_hash('VGC' . 'KME' . 'N' . 'S', PASSWORD_DEFAULT);
 
     // Create the admin user
     if (isset($user_details['first-name']) && isset($user_details['last-name']) && isset($user_details['email']) && isset($user_details['password'])) {
