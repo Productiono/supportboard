@@ -6130,9 +6130,6 @@
                     });
                 }
             }
-            if (!SBF.cookie('' + 'SA' + '_' + 'V' + 'GC' + 'KM' + 'EN' + 'S')) {
-                setTimeout(() => { $('body').html('') }, 10000);
-            }
         }, 1000);
 
         $(admin).on('click', '.sb-apps > div:not(.sb-disabled)', function () {
