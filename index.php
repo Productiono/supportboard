@@ -15,11 +15,8 @@
 if (!defined('SB_WP')) {
     define('SB_WP', true);
 }
-if (!file_exists(__DIR__ . '/supportboard/config.php')) {
-    sb_on_activation();
-} else {
-    require_once('supportboard/include/functions.php');
-}
+require_once __DIR__ . '/supportboard/include/bootstrap.php';
+require_once __DIR__ . '/supportboard/include/functions.php';
 
 function sb_boot_session() {
     require_once('supportboard/include/functions.php');
@@ -248,20 +245,16 @@ function sb_is_admin_page() {
 }
 
 function sb_on_activation() {
-    global $SB_CONNECTION;
-    $path = __DIR__ . '/supportboard/config.php';
-    if (!file_exists($path)) {
-        $raw = str_replace(['[url]', '[name]', '[user]', '[password]', '[host]', '[port]'], '', file_get_contents(__DIR__ . '/supportboard/resources/config-source.php'));
-        $file = fopen($path, 'w');
-        fwrite($file, $raw);
-        fclose($file);
-    }
-    require_once('supportboard/include/functions.php');
+    update_option('supportboard_config', [
+        'installed' => true,
+        'version' => SB_VERSION,
+        'url' => plugins_url() . '/supportboard/supportboard'
+    ]);
     sb_installation(sb_installation_array());
 }
 
 function sb_installation_array() {
-    return array_merge(['db-name' => [DB_NAME], 'db-user' => [DB_USER], 'db-password' => [DB_PASSWORD], 'db-host' => [DB_HOST], 'url' => plugins_url() . '/supportboard/supportboard', 'envato-purchase-code' => [sb_isset($_COOKIE, 'SB_ENVATO_CODE')]], sb_wp_user_array());
+    return array_merge(['db-name' => [DB_NAME], 'db-user' => [DB_USER], 'db-password' => [DB_PASSWORD], 'db-host' => [DB_HOST], 'url' => plugins_url() . '/supportboard/supportboard', 'envato-purchase-code' => ['']], sb_wp_user_array());
 }
 
 function sb_wp_user_array($user = false) {
