@@ -249,14 +249,11 @@ function sb_is_admin_page() {
 
 function sb_on_activation() {
     global $SB_CONNECTION;
-    $path = __DIR__ . '/supportboard/config.php';
-    if (!file_exists($path)) {
-        $raw = str_replace(['[url]', '[name]', '[user]', '[password]', '[host]', '[port]'], '', file_get_contents(__DIR__ . '/supportboard/resources/config-source.php'));
-        $file = fopen($path, 'w');
-        fwrite($file, $raw);
-        fclose($file);
-    }
     require_once('supportboard/include/functions.php');
+    sb_update_config_option([
+        'installed' => true,
+        'version' => SB_VERSION
+    ]);
     sb_installation(sb_installation_array());
 }
 
