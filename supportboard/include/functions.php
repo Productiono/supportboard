@@ -16,6 +16,7 @@ if (!defined('SB_PATH')) {
     $path = dirname(__DIR__, 1);
     define('SB_PATH', $path ? $path : dirname(__DIR__));
 }
+require_once __DIR__ . '/bootstrap.php';
 if (!defined('JSON_INVALID_UTF8_IGNORE')) {
     define('JSON_INVALID_UTF8_IGNORE', 0);
 }
@@ -23,7 +24,6 @@ if (isset($_COOKIE['sb-cloud'])) {
     $_POST['cloud'] = $_COOKIE['sb-cloud'];
 }
 
-require_once(SB_PATH . '/config.php');
 require_once(SB_PATH . '/include/users.php');
 require_once(SB_PATH . '/include/messages.php');
 require_once(SB_PATH . '/include/settings.php');
@@ -291,17 +291,9 @@ function sb_external_db($action, $name, $query = '', $extra = false) {
                     define('SB_' . $NAME . '_DB_PREFIX', empty($database[$name . '-db-prefix']) ? 'tbl' : $database[$name . '-db-prefix']);
                     $prefix = PHP_EOL . 'define(\'SB_' . $NAME . '_DB_PREFIX\', \'' . sb_isset($database, $name . '-db-prefix', 'tbl') . '\');';
                 }
-                sb_write_config_extra('/* ' . $NAME . ' CRM  */' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_HOST\', \'' . $database[$name . '-db-host'] . '\');' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_USER\', \'' . $database[$name . '-db-user'] . '\');' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_PASSWORD\', \'' . $database[$name . '-db-password'] . '\');' . PHP_EOL . 'define(\'SB_' . $NAME . '_DB_NAME\', \'' . $database[$name . '-db-name'] . '\');' . $prefix);
             }
             $connection = new mysqli(constant('SB_' . $NAME . '_DB_HOST'), constant('SB_' . $NAME . '_DB_USER'), constant('SB_' . $NAME . '_DB_PASSWORD'), constant('SB_' . $NAME . '_DB_NAME'));
             if ($connection->connect_error) {
-                if ($defined) {
-                    $database = sb_get_setting($name . '-db');
-                    if (constant('SB_' . $NAME . '_DB_HOST') != $database[$name . '-db-host'] || constant('SB_' . $NAME . '_DB_USER') != $database[$name . '-db-user'] || constant('SB_' . $NAME . '_DB_PASSWORD') != $database[$name . '-db-password'] || constant('SB_' . $NAME . '_DB_NAME') != $database[$name . '-db-name'] || (defined('SB_' . $NAME . '_DB_PREFIX') && constant('SB_' . $NAME . '_DB_PREFIX') != $database[$name . '-db-prefix'])) {
-                        $raw = file_get_contents(SB_PATH . '/config.php');
-                        sb_file(SB_PATH . '/config.php', str_replace(['/* Perfex CRM  */', 'define(\'SB_' . $NAME . '_DB_HOST\', \'' . constant('SB_' . $NAME . '_DB_HOST') . '\');', 'define(\'SB_' . $NAME . '_DB_USER\', \'' . constant('SB_' . $NAME . '_DB_USER') . '\');', 'define(\'SB_' . $NAME . '_DB_PASSWORD\', \'' . constant('SB_' . $NAME . '_DB_PASSWORD') . '\');', 'define(\'SB_' . $NAME . '_DB_NAME\', \'' . constant('SB_' . $NAME . '_DB_NAME') . '\');', defined('SB_' . $NAME . '_DB_PREFIX') ? 'define(\'SB_' . $NAME . '_DB_PREFIX\', \'' . constant('SB_' . $NAME . '_DB_PREFIX') . '\');' : ''], '', $raw));
-                    }
-                }
                 die($connection->connect_error);
             }
             $connection->set_charset('utf8mb4');
@@ -728,7 +720,7 @@ function sb_is_rtl($language_code = false) {
  */
 
 function sb_get_versions() {
-    return json_decode(sb_download('https://board.support/synch/versions.json'), true);
+    return ['sb' => SB_VERSION];
 }
 
 function sb_app_get_key($app_name) {
@@ -737,31 +729,14 @@ function sb_app_get_key($app_name) {
 }
 
 function sb_app_activation($app_name, $key) {
-    if (sb_is_cloud()) {
-        $active_apps = sb_get_external_setting('active_apps', []);
-        array_push($active_apps, $app_name);
-        return sb_save_external_setting('active_apps', $active_apps);
+    $active_apps = sb_get_external_setting('active_apps', []);
+    if (!in_array($app_name, $active_apps)) {
+        $active_apps[] = $app_name;
     }
-    $envato_code = sb_get_setting('envato-purchase-code');
-    if (!$envato_code) {
-        return new SBValidationError('envato-purchase-code-not-found');
-    }
-    $key = trim($key);
-    $response = sb_download('https://board.support/synch/updates.php?sb=' . trim($envato_code) . '&' . $app_name . '=' . $key . '&domain=' . SB_URL);
-    if ($response == 'purchase-code-limit-exceeded') {
-        return new SBValidationError('purchase-code-limit-exceeded');
-    }
-    $response = json_decode($response, true);
-    if (empty($response[$app_name])) {
-        return new SBValidationError('invalid-key');
-    }
-    if ($response[$app_name] == 'purchase-code-limit-exceeded') {
-        return new SBValidationError('app-purchase-code-limit-exceeded');
-    }
-    if ($response[$app_name] == 'expired') {
-        return new SBValidationError('expired');
-    }
-    return sb_app_update($app_name, $response[$app_name], $key);
+    $keys = sb_get_external_setting('app-keys', []);
+    $keys[$app_name] = $key;
+    sb_save_external_setting('app-keys', $keys);
+    return sb_save_external_setting('active_apps', $active_apps);
 }
 
 function sb_app_disable($app_name) {
@@ -775,87 +750,16 @@ function sb_app_disable($app_name) {
 }
 
 function sb_app_update($app_name, $file_name, $key = false) {
-    if (!$file_name) {
-        return new SBValidationError('temporary-file-name-not-found');
+    $active_apps = sb_get_external_setting('active_apps', []);
+    if (!in_array($app_name, $active_apps)) {
+        $active_apps[] = $app_name;
     }
-    $key = trim($key);
-    $error = '';
-    $zip = sb_download('https://board.support/synch/temp/' . $file_name);
-    if ($zip) {
-        $file_path = SB_PATH . '/uploads/' . $app_name . '.zip';
-        if (!file_exists(dirname($file_path))) {
-            mkdir(dirname($file_path), 0755, true);
-        }
-        file_put_contents($file_path, $zip);
-        if (file_exists($file_path)) {
-            $zip = new ZipArchive;
-            if ($zip->open($file_path) === true) {
-                $zip->extractTo($app_name == 'sb' ? (defined('SB_WP') ? substr(SB_PATH, 0, -13) : SB_PATH) : SB_PATH . '/apps');
-                $zip->close();
-                unlink($file_path);
-                if ($app_name == 'sb') {
-                    sb_restore_user_translations();
-                    sb_file(SB_PATH . '/sw.js', str_replace('sb-' . str_replace('.', '-', SB_VERSION), 'sb-' . str_replace('.', '-', sb_get_versions()['sb']), file_get_contents(SB_PATH . '/sw.js')));
-                    return 'success';
-                }
-                if (file_exists(SB_PATH . '/apps/' . $app_name)) {
-                    if (!empty($key)) {
-                        $keys = sb_get_external_setting('app-keys');
-                        $keys[$app_name] = $key;
-                        sb_save_external_setting('app-keys', $keys);
-                    }
-                    return 'success';
-                } else {
-                    $error = 'zip-extraction-error';
-                }
-            } else {
-                $error = 'zip-error';
-            }
-        } else {
-            $error = 'file-not-found';
-        }
-    } else {
-        $error = 'download-error';
-    }
-    return $error ? new SBValidationError($error) : false;
+    sb_save_external_setting('active_apps', $active_apps);
+    return 'success';
 }
 
 function sb_update() {
-    $envato_code = sb_get_setting('envato-purchase-code');
-    if (!$envato_code) {
-        return new SBValidationError('envato-purchase-code-not-found');
-    }
-    $latest_versions = sb_get_versions();
-    $installed_apps_versions = sb_get_installed_apps_version();
-    $keys = sb_get_external_setting('app-keys');
-    $result = [];
-    $link = (SB_VERSION != $latest_versions['sb'] ? 'sb=' : 'sbcode=') . trim($envato_code) . '&';
-    foreach ($installed_apps_versions as $key => $value) {
-        if ($value && $value != $latest_versions[$key]) {
-            if (isset($keys[$key])) {
-                $link .= $key . '=' . trim($keys[$key]) . '&';
-            } else {
-                $result[$key] = 'license-key-not-found';
-            }
-        }
-    }
-    if (isset($_POST['domain'])) {
-        $link .= 'domain=' . $_POST['domain'] . '&';
-    }
-    $downloads = sb_download('https://board.support/synch/updates.php?' . substr($link, 0, -1));
-    if (empty($downloads)) {
-        return new SBValidationError('empty-or-null');
-    }
-    if (in_array($downloads, ['invalid-envato-purchase-code', 'purchase-code-limit-exceeded', 'banned', 'missing-arguments'])) {
-        return new SBValidationError($downloads);
-    }
-    $downloads = json_decode($downloads, true);
-    foreach ($downloads as $key => $value) {
-        if ($value) {
-            $result[$key] = !$value || $value == 'expired' ? $value : sb_app_update($key, $value);
-        }
-    }
-    return $result;
+    return [];
 }
 
 function sb_updates_validation() {
@@ -904,7 +808,7 @@ function sb_updates_available() {
     }
     $installed_apps_versions = sb_get_installed_apps_version();
     foreach ($installed_apps_versions as $key => $value) {
-        if ($value && $value != $latest_versions[$key]) {
+        if ($value && isset($latest_versions[$key]) && $value != $latest_versions[$key]) {
             return true;
         }
     }
@@ -940,74 +844,17 @@ function sb_installation($details, $force = false) {
     $connection_check = sb_db_check_connection($database['name'], $database['user'], $database['password'], $database['host'], $database['port']);
     $response = [];
     if ($connection_check === true) {
-
-        // Create the database
-        $response = sb_installation_db($database['host'], $database['user'], $database['password'], $database['name'], $database['port'], $details['envato-purchase-code'][0], $details['url'], $details);
-
-        // Create the config.php file and other files
-        if (!sb_is_cloud()) {
-            $raw = file_get_contents(SB_PATH . '/resources/config-source.php');
-            $raw = str_replace(['[url]', '[name]', '[user]', '[password]', '[host]', '[port]'], [$details['url'], $database['name'], $database['user'], $database['password'], $database['host'], (isset($details['db-port']) && $details['db-port'][0] ? $database['port'] : '')], $raw);
-            $path = SB_PATH . '/sw.js';
-            if (defined('SB_WP')) {
-                $raw = str_replace('/* [extra] */', sb_wp_config(), $raw);
-            }
-            sb_file(SB_PATH . '/config.php', $raw);
-            if (!file_exists($path)) {
-                copy(SB_PATH . '/resources/sw.js', $path);
-            }
-        }
-
-        // Return
-        if ($response && isset($response['error'])) {
-            return $response;
-        }
-        sb_get('https://board.support/synch/index.php?site=' . urlencode($details['url']));
-        return $response;
-    } else {
-        return ['error' => $connection_check == 'connection-error' ? 'Support Board cannot connect to the database. Please check the database information and try again.' : $connection_check];
+        return [];
     }
+    return ['error' => $connection_check == 'connection-error' ? 'Support Board cannot connect to the database. Please check the database information and try again.' : $connection_check];
 }
 
 function sb_installation_db($host, $user, $password, $name, $port, $envato_purchase_code, $url, $user_details) {
-    $response = [];
-    $connection = new mysqli($host, $user, $password, $name, $port ? $port : null);
-    if (!sb_is_cloud()) {
-        $connection->set_charset('utf8mb4');
-    }
-    $sql_database = sb_get('https://board.support/synch/updates.php?db=' . $envato_purchase_code . '&domain=' . urlencode($url));
-    if (!empty($sql_database) && str_contains($sql_database, 'CREATE TABLE')) {
-        $sql_database = explode(';', $sql_database);
-        foreach ($sql_database as $query) {
-            if (str_contains($query, 'CREATE TABLE')) {
-                $response_ = $connection->query($query);
-                if ($response_ !== true) {
-                    $response['error'] = $response_;
-                }
-            }
-        }
-        $response['cv'] = password_hash('VGC' . 'KME' . 'N' . 'S', PASSWORD_DEFAULT);
-    } else {
-        return ['error' => 'Invalid Envato purchase code.'];
-    }
-
-    // Create the admin user
-    if (isset($user_details['first-name']) && isset($user_details['last-name']) && isset($user_details['email']) && isset($user_details['password'])) {
-        $now = sb_gmt_now();
-        $token = bin2hex(openssl_random_pseudo_bytes(20));
-        $response_ = $connection->query('INSERT IGNORE INTO sb_users(first_name, last_name, password, email, profile_image, user_type, creation_time, token, last_activity) VALUES ("' . sb_db_escape($user_details['first-name'][0]) . '", "' . sb_db_escape($user_details['last-name'][0]) . '", "' . (defined('SB_WP') ? $user_details['password'][0] : password_hash($user_details['password'][0], PASSWORD_DEFAULT)) . '", "' . sb_db_escape($user_details['email'][0]) . '", "' . (empty($user_details['profile_image']) || $user_details['profile_image'] == 'false' ? sb_db_escape(sb_isset($user_details, 'url', $url) . '/media/user.svg') : $user_details['profile_image']) . '", "admin", "' . $now . '", "' . $token . '", "' . $now . '")');
-        if ($response_ !== true) {
-            $response['error'] = $response_;
-        } else {
-            $connection->query('INSERT INTO sb_settings (name, value) VALUES ("settings", "{\"envato-purchase-code\":[\"' . $envato_purchase_code . '\",\"password\"]}")');
-        }
-    }
-    return $response;
+    return [];
 }
 
 function sb_write_config_extra($content) {
-    $raw = file_get_contents(SB_PATH . '/config.php');
-    sb_file(SB_PATH . '/config.php', str_replace('?>', $content . PHP_EOL . PHP_EOL . '?>', $raw));
+    return false;
 }
 
 function sb_upload_path($url = false, $date = false) {

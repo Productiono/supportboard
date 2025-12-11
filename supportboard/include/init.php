@@ -12,13 +12,10 @@
 header('Access-Control-Allow-Headers: *');
 $_POST['init.php'] = true;
 
-if (!file_exists('../config.php')) {
-    die();
-}
+require_once __DIR__ . '/bootstrap.php';
 if (!defined('SB_PATH')) {
     define('SB_PATH', dirname(dirname(__FILE__)));
 }
-require('../config.php');
 if (defined('SB_CROSS_DOMAIN') && SB_CROSS_DOMAIN) {
     header('Access-Control-Allow-Origin: *');
 }

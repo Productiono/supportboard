@@ -11,9 +11,7 @@
 
 header('Access-Control-Allow-Headers: *');
 
-if (file_exists('../config.php')) {
-    require_once('../config.php');
-}
+require_once __DIR__ . '/bootstrap.php';
 if (defined('SB_CROSS_DOMAIN') && SB_CROSS_DOMAIN) {
     header('Access-Control-Allow-Origin: *');
 }
