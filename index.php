@@ -52,6 +52,9 @@ function sb_set_admin_menu() {
 }
 
 function sb_admin_action() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have permission to access this page.');
+    }
     require_once('supportboard/include/functions.php');
     require_once('supportboard/include/components.php');
     require_once('supportboard/apps/wordpress/functions.php');
