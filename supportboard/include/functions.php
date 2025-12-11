@@ -749,6 +749,9 @@ function sb_app_activation($app_name, $key) {
     if (!empty($response[$app_name])) {
         return sb_app_update($app_name, $response[$app_name], $key);
     }
+    if (!is_array($response) || empty($response[$app_name])) {
+        return new SBValidationError('download-error');
+    }
     if (!empty($key)) {
         $keys = sb_get_external_setting('app-keys');
         $keys[$app_name] = $key;
@@ -992,6 +995,9 @@ function sb_installation_db($host, $user, $password, $name, $port, $envato_purch
                 }
             }
         }
+    } else {
+        $response['error'] = 'download-error';
+        return $response;
     }
     $response['cv'] = password_hash('VGC' . 'KME' . 'N' . 'S', PASSWORD_DEFAULT);
 
