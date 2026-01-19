@@ -1,0 +1,16 @@
+{
+  "name": "central-auth-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n auth,api,web -c blue,green,magenta \"npm:dev -w @central-auth/auth-service\" \"npm:dev -w @central-auth/api-service\" \"npm:dev -w @central-auth/web-client-demo\"",
+    "lint": "npm -ws run lint",
+    "test": "npm -ws run test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
