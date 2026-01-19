@@ -2,18 +2,14 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { SignJWT, exportJWK, calculateJwkThumbprint, importPKCS8, importSPKI } from 'jose';
+import { exportJWK, calculateJwkThumbprint, importPKCS8, importSPKI } from 'jose';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  ACCESS_TOKEN_TTL_SECONDS,
-  buildAuditEntry,
-  generateRefreshToken,
-  sha256Base64Url
-} from '@central-auth/shared';
+import { buildAuditEntry, generateRefreshToken, sha256Base64Url } from '@central-auth/shared';
 import { config, assertConfig } from './config.js';
 import { loadOrCreateKeys } from './keys.js';
 import { InMemoryTokenStore, PostgresTokenStore, RedisTokenStore } from './tokenStore.js';
 import { findUserById, validateUser } from './userStore.js';
+import { issueAccessToken } from './tokens.js';
 
 assertConfig();
 
@@ -97,18 +93,6 @@ async function issueRefreshToken({ userId, ip, ua }) {
   return { refreshToken, record };
 }
 
-async function issueAccessToken({ user }) {
-  const jti = uuidv4();
-  return new SignJWT({ roles: user.roles, scopes: user.scopes || [] })
-    .setProtectedHeader({ alg: 'RS256', kid })
-    .setIssuer(config.issuer)
-    .setAudience(config.audience)
-    .setSubject(user.id)
-    .setJti(jti)
-    .setIssuedAt()
-    .setExpirationTime(ACCESS_TOKEN_TTL_SECONDS)
-    .sign(privateKey);
-}
 
 function extractRefreshToken(req) {
   return req.cookies['__Secure-rt'];
@@ -171,7 +155,14 @@ app.post('/refresh', originGuard, limiter, async (req, res) => {
   });
   await tokenStore.revokeByHash(tokenHash, { revokedAt: new Date().toISOString(), rotatedToJti: newRecord.jti });
 
-  const accessToken = await issueAccessToken({ user });
+  const accessToken = await issueAccessToken({
+    user,
+    jti: uuidv4(),
+    kid,
+    privateKey,
+    issuer: config.issuer,
+    audience: config.audience
+  });
 
   res.cookie('__Secure-rt', newRefreshToken, buildCookieOptions());
   logAudit('refresh', { userId: record.userId, ip: req.ip, ua: req.get('user-agent') });
