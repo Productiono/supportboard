@@ -1,0 +1,17 @@
+{
+  "name": "@central-auth/api-service",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "lint": "node --check src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@central-auth/shared": "workspace:*",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jose": "^5.2.4"
+  }
+}
