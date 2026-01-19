@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 const users = [
   {
     id: 'user-1',
@@ -25,5 +27,19 @@ export async function validateUser(email, password) {
   const user = await findUserByEmail(email);
   if (!user) return null;
   if (user.password !== password) return null;
+  return user;
+}
+
+export async function createUser({ email, password, name }) {
+  const existingUser = await findUserByEmail(email);
+  if (existingUser) return null;
+  const user = {
+    id: `user-${randomUUID()}`,
+    email,
+    password,
+    name,
+    roles: ['user']
+  };
+  users.push(user);
   return user;
 }
