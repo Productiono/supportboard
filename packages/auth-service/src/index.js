@@ -102,6 +102,10 @@ function clearRefreshCookie(res) {
   res.clearCookie('__Secure-rt', buildCookieOptions());
 }
 
+app.get('/login', (req, res) => {
+  return res.json({ ok: true, message: 'Use POST /login' });
+});
+
 app.post('/login', originGuard, limiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
@@ -131,6 +135,10 @@ app.post('/login', originGuard, limiter, async (req, res) => {
   res.cookie('__Secure-rt', refreshToken, buildCookieOptions());
   logAudit('login', { userId: user.id, ip: req.ip, ua: req.get('user-agent') });
   return res.json({ accessToken });
+});
+
+app.get('/register', (req, res) => {
+  return res.json({ ok: true, message: 'Use POST /register' });
 });
 
 app.post('/register', originGuard, limiter, async (req, res) => {
