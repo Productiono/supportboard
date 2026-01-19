@@ -1,0 +1,334 @@
+# Production Deployment Guide (Central Auth Monorepo)
+
+This repo contains three Node services:
+- **Auth Service** (`packages/auth-service`) on port **3000** by default.
+- **API Service** (`packages/api-service`) on port **4000** by default.
+- **Web Client Demo** (`packages/web-client-demo`) on port **3001** by default.
+
+The steps below deploy all three on a single Linux server behind Nginx.
+
+---
+
+## 1) Server prerequisites
+
+### Required Node.js version + package manager
+- **Recommended Node.js:** 20.x LTS (or newer LTS).
+- **Package manager:** npm (this repo uses npm workspaces).
+
+Install Node.js 20 LTS (Ubuntu/Debian):
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node -v
+npm -v
+```
+
+### System packages
+Install Nginx, Certbot, and optional datastores:
+```bash
+sudo apt-get update
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+# Optional (choose one or both depending on how you store refresh tokens)
+sudo apt-get install -y redis-server
+sudo apt-get install -y postgresql postgresql-contrib
+```
+
+Install PM2 (process manager) globally:
+```bash
+sudo npm install -g pm2
+```
+
+### Recommended user + permissions
+Create a non-root deploy user and set ownership:
+```bash
+sudo adduser --disabled-password --gecos "" deploy
+sudo mkdir -p /srv/central-auth
+sudo chown -R deploy:deploy /srv/central-auth
+```
+
+Clone the repo as `deploy`:
+```bash
+sudo -u deploy git clone <REPO_URL> /srv/central-auth
+cd /srv/central-auth
+npm install
+```
+
+---
+
+## 2) Environment variables
+
+### Required env vars (Auth Service)
+- `PORT` (optional): port to listen on. Default **3000**.
+- `ISSUER` (**required for prod**): JWT issuer string used in tokens.
+- `AUDIENCE` (**required for prod**): JWT audience string used in tokens.
+- `COOKIE_DOMAIN` (**required for prod**): cookie domain (e.g. `.example.com`).
+- `COOKIE_SECURE` (optional): default `true`. Set `false` only for local dev.
+- `ALLOWED_ORIGINS` (optional but required for prod CORS): comma-separated list of allowed origins.
+- `REFRESH_TOKEN_TTL_DAYS` (optional): default `30`.
+- `REDIS_URL` (optional): enable Redis token store (e.g. `redis://127.0.0.1:6379`).
+- `DATABASE_URL` (optional): enable Postgres token store (e.g. `postgres://user:pass@127.0.0.1:5432/central_auth`).
+- `RATE_LIMIT_WINDOW_MS` (optional): default `900000` (15 minutes).
+- `RATE_LIMIT_MAX` (optional): default `50` requests per window.
+- `PRIVATE_KEY` / `PUBLIC_KEY` (optional): RSA PEMs for signing tokens. If unset, keys are created under `packages/auth-service/keys/`.
+
+### Required env vars (API Service)
+- `PORT` (optional): port to listen on. Default **4000**.
+- `ISSUER` (**required for prod**): must match Auth Service `ISSUER`.
+- `AUDIENCE` (**required for prod**): must match Auth Service `AUDIENCE`.
+- `JWKS_URL` (**required for prod**): URL to Auth Service JWKS endpoint.
+
+### Required env vars (Web Client Demo)
+- `PORT` (optional): port to listen on. Default **3001**.
+- There is **no .env** for the web client; it uses hard-coded URLs in `packages/web-client-demo/index.html`.
+
+### Example .env templates (no secrets)
+Create one `.env` file per service directory:
+
+**`/srv/central-auth/packages/auth-service/.env`**
+```bash
+PORT=3000
+ISSUER=https://app.example.com/auth
+AUDIENCE=central-auth-apis
+COOKIE_DOMAIN=.example.com
+COOKIE_SECURE=true
+ALLOWED_ORIGINS=https://app.example.com
+REFRESH_TOKEN_TTL_DAYS=30
+REDIS_URL=redis://127.0.0.1:6379
+# DATABASE_URL=postgres://central_auth:REDACTED@127.0.0.1:5432/central_auth
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=50
+# PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nREDACTED\n-----END PRIVATE KEY-----"
+# PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nREDACTED\n-----END PUBLIC KEY-----"
+```
+
+**`/srv/central-auth/packages/api-service/.env`**
+```bash
+PORT=4000
+ISSUER=https://app.example.com/auth
+AUDIENCE=central-auth-apis
+JWKS_URL=https://app.example.com/auth/jwks.json
+```
+
+**`/srv/central-auth/packages/web-client-demo/.env`** (optional)
+```bash
+PORT=3001
+```
+
+**Where `.env` should live:**
+- Place `.env` files in each service directory (`packages/auth-service/.env`, `packages/api-service/.env`, `packages/web-client-demo/.env`).
+- Each service loads its `.env` from its current working directory via `dotenv`.
+
+---
+
+## 3) Nginx reverse proxy config (copy/paste ready)
+
+This configuration serves the web client at `https://app.example.com`, and proxies:
+- `/auth/*` -> Auth Service on `127.0.0.1:3000`
+- `/api/*` -> API Service on `127.0.0.1:4000`
+- `/` -> Web client on `127.0.0.1:3001`
+
+**/etc/nginx/sites-available/central-auth.conf**
+```nginx
+# Rate limiting zones for auth endpoints
+limit_req_zone $binary_remote_addr zone=auth_login:10m rate=5r/s;
+limit_req_zone $binary_remote_addr zone=auth_refresh:10m rate=3r/s;
+
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  '' close;
+}
+
+server {
+  listen 80;
+  server_name app.example.com;
+
+  location /.well-known/acme-challenge/ { root /var/www/certbot; }
+  location / { return 301 https://$host$request_uri; }
+}
+
+server {
+  listen 443 ssl http2;
+  server_name app.example.com;
+
+  ssl_certificate /etc/letsencrypt/live/app.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
+
+  # Security headers
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  # Gzip (Brotli requires a separate module; enable if installed)
+  gzip on;
+  gzip_types text/plain text/css application/json application/javascript application/xml+rss image/svg+xml;
+
+  # Uploads/timeouts
+  client_max_body_size 2m;
+  proxy_read_timeout 60s;
+  proxy_send_timeout 60s;
+
+  # Web client
+  location / {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # Auth service (strip /auth prefix)
+  location = /auth/login {
+    limit_req zone=auth_login burst=10 nodelay;
+    proxy_pass http://127.0.0.1:3000/login;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+  }
+
+  location = /auth/refresh {
+    limit_req zone=auth_refresh burst=10 nodelay;
+    proxy_pass http://127.0.0.1:3000/refresh;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+  }
+
+  location /auth/ {
+    proxy_pass http://127.0.0.1:3000/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+  }
+
+  # API service (strip /api prefix)
+  location /api/ {
+    proxy_pass http://127.0.0.1:4000/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # WebSocket/SSE ready
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+  }
+
+  # Cache static assets aggressively
+  location ~* \.(?:css|js|mjs|svg|png|jpg|jpeg|gif|ico)$ {
+    expires 30d;
+    add_header Cache-Control "public, max-age=2592000, immutable";
+  }
+}
+```
+
+Enable the site and reload:
+```bash
+sudo ln -s /etc/nginx/sites-available/central-auth.conf /etc/nginx/sites-enabled/central-auth.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### HTTPS with Let’s Encrypt
+```bash
+sudo mkdir -p /var/www/certbot
+sudo certbot --nginx -d app.example.com
+```
+
+> If you prefer separate domains (`auth.example.com`, `api.example.com`), create additional server blocks with their own `server_name` and adjust `ISSUER`, `JWKS_URL`, and the web client config accordingly.
+
+---
+
+## 4) PM2 process setup (copy/paste ready)
+
+Start each service with PM2 from the repo root:
+```bash
+cd /srv/central-auth
+
+pm2 start packages/auth-service/src/index.js --name auth-service --cwd /srv/central-auth/packages/auth-service
+pm2 start packages/api-service/src/index.js --name api-service --cwd /srv/central-auth/packages/api-service
+pm2 start packages/web-client-demo/server.js --name web-client --cwd /srv/central-auth/packages/web-client-demo
+```
+
+Set PM2 to start on boot and save the process list:
+```bash
+pm2 startup systemd -u deploy --hp /home/deploy
+pm2 save
+```
+
+View logs and restart safely:
+```bash
+pm2 status
+pm2 logs auth-service
+pm2 restart auth-service
+pm2 reload api-service
+```
+
+---
+
+## 5) App-side production changes
+
+### Production domains / base URLs
+- **Auth Service (`packages/auth-service/.env`)**
+  - Set `ISSUER` to your production auth URL (e.g. `https://app.example.com/auth`).
+- **API Service (`packages/api-service/.env`)**
+  - Set `JWKS_URL` to the Auth Service JWKS endpoint (e.g. `https://app.example.com/auth/jwks.json`).
+- **Web Client Demo (`packages/web-client-demo/index.html`)**
+  - Update `config.authBase` and `config.apiBase` to your production URLs (e.g. `https://app.example.com/auth` and `https://app.example.com/api`).
+
+### CORS, cookies, and trusted origins
+- `ALLOWED_ORIGINS` must include the exact origin of the web app (e.g. `https://app.example.com`).
+- `COOKIE_DOMAIN` should be `.example.com` if you use subdomains (auth/api/app). Use the exact domain otherwise.
+- `COOKIE_SECURE` should be `true` in production.
+- Auth cookies use `SameSite=Lax` and `HttpOnly` by default.
+
+### Turnstile (not used)
+- This repo does **not** implement Turnstile/recaptcha. No settings required.
+
+### OAuth / callback URLs (not used)
+- This repo does **not** implement OAuth providers. No callback URLs required.
+
+### Database migration steps
+- If using **Postgres**, the Auth Service automatically creates the `refresh_tokens` table on startup.
+- If using **Redis**, no schema/migrations are required.
+
+### Build/run commands
+There is **no build step**. Start services directly with Node (PM2 shown above).
+
+---
+
+## 6) Health checks & verification
+
+### Verify services are running
+```bash
+pm2 status
+sudo systemctl status nginx
+```
+
+### Test endpoints
+```bash
+# Auth service health
+curl -s https://app.example.com/auth/health
+
+# API service health
+curl -s https://app.example.com/api/health
+
+# Web client should return HTML
+curl -s https://app.example.com | head -n 5
+```
+
+### Common troubleshooting
+- **Permissions errors**: ensure `/srv/central-auth` is owned by `deploy`, and `packages/auth-service/keys` is writable.
+- **Env not loading**: confirm `.env` files are in each service directory and PM2 `--cwd` points there.
+- **502 from Nginx**: check PM2 status, verify ports 3000/4000/3001 are listening.
+- **PM2 not restarting on boot**: rerun `pm2 startup` and `pm2 save`, and verify systemd service.
