@@ -25,6 +25,14 @@ Add the following entry to your hosts file (`/etc/hosts` or `C:\Windows\System32
 npm install
 ```
 
+If you use pnpm instead of npm, approve build scripts so Vite can run `esbuild`:
+
+```
+pnpm approve-builds
+```
+
+Select `esbuild` (and any other required build tooling) when prompted.
+
 ### 3) Configure environment
 
 Copy the `.env.example` files and adjust as needed:
