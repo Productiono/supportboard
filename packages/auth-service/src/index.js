@@ -8,7 +8,7 @@ import { buildAuditEntry, generateRefreshToken, sha256Base64Url } from '@central
 import { config, assertConfig } from './config.js';
 import { loadOrCreateKeys } from './keys.js';
 import { InMemoryTokenStore, PostgresTokenStore, RedisTokenStore } from './tokenStore.js';
-import { findUserById, validateUser } from './userStore.js';
+import { createUser, findUserById, validateUser } from './userStore.js';
 import { issueAccessToken } from './tokens.js';
 
 assertConfig();
@@ -119,9 +119,49 @@ app.post('/login', originGuard, limiter, async (req, res) => {
     ua: req.get('user-agent')
   });
 
+  const accessToken = await issueAccessToken({
+    user,
+    jti: uuidv4(),
+    kid,
+    privateKey,
+    issuer: config.issuer,
+    audience: config.audience
+  });
+
   res.cookie('__Secure-rt', refreshToken, buildCookieOptions());
   logAudit('login', { userId: user.id, ip: req.ip, ua: req.get('user-agent') });
-  return res.json({ ok: true });
+  return res.json({ accessToken });
+});
+
+app.post('/register', originGuard, limiter, async (req, res) => {
+  const { email, password, name } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Missing credentials' });
+  }
+
+  const user = await createUser({ email, password, name });
+  if (!user) {
+    return res.status(409).json({ error: 'User already exists' });
+  }
+
+  const { refreshToken } = await issueRefreshToken({
+    userId: user.id,
+    ip: req.ip,
+    ua: req.get('user-agent')
+  });
+
+  const accessToken = await issueAccessToken({
+    user,
+    jti: uuidv4(),
+    kid,
+    privateKey,
+    issuer: config.issuer,
+    audience: config.audience
+  });
+
+  res.cookie('__Secure-rt', refreshToken, buildCookieOptions());
+  logAudit('register', { userId: user.id, ip: req.ip, ua: req.get('user-agent') });
+  return res.json({ accessToken });
 });
 
 app.post('/refresh', originGuard, limiter, async (req, res) => {
