@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Central Auth Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 720px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+      label {
+        display: block;
+        margin: 10px 0 4px;
+      }
+      input {
+        width: 100%;
+        padding: 8px;
+      }
+      button {
+        margin-top: 12px;
+        padding: 8px 12px;
+      }
+      pre {
+        background: #f5f5f5;
+        padding: 12px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Central Auth Demo</h1>
+    <p>Login once and refresh the access token to call a protected API.</p>
+
+    <section>
+      <h2>Login</h2>
+      <label for="email">Email</label>
+      <input id="email" type="email" value="user@example.com" />
+      <label for="password">Password</label>
+      <input id="password" type="password" value="password123" />
+      <button id="login">Login</button>
+    </section>
+
+    <section>
+      <h2>Refresh Access Token</h2>
+      <button id="refresh">Refresh</button>
+    </section>
+
+    <section>
+      <h2>Call Protected API</h2>
+      <button id="private">Call /private</button>
+      <button id="admin">Call /admin</button>
+    </section>
+
+    <h2>Output</h2>
+    <pre id="output">Waiting...</pre>
+
+    <script>
+      const config = {
+        authBase: 'https://auth.example.com',
+        apiBase: 'https://api1.example.com'
+      };
+
+      let accessToken = null;
+
+      const output = document.getElementById('output');
+      const email = document.getElementById('email');
+      const password = document.getElementById('password');
+
+      const print = (label, data) => {
+        output.textContent = `${label}\n${JSON.stringify(data, null, 2)}`;
+      };
+
+      document.getElementById('login').addEventListener('click', async () => {
+        const response = await fetch(`${config.authBase}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            email: email.value,
+            password: password.value
+          })
+        });
+        const data = await response.json();
+        print('Login response', data);
+      });
+
+      document.getElementById('refresh').addEventListener('click', async () => {
+        const response = await fetch(`${config.authBase}/refresh`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        const data = await response.json();
+        accessToken = data.accessToken || null;
+        print('Refresh response', data);
+      });
+
+      async function callApi(path) {
+        if (!accessToken) {
+          print('Error', { message: 'Missing access token. Click refresh first.' });
+          return;
+        }
+        const response = await fetch(`${config.apiBase}${path}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        });
+        const data = await response.json();
+        print(`API ${path}`, data);
+      }
+
+      document.getElementById('private').addEventListener('click', () => callApi('/private'));
+      document.getElementById('admin').addEventListener('click', () => callApi('/admin'));
+    </script>
+  </body>
+</html>
